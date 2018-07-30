@@ -233,7 +233,7 @@ def prediction(time_step=20):
 # ========================================主代码==================================
 
 # 导入数据
-f = open('DJIA_table.csv')
+f = open('/data/DJIA_table.csv')
 df = pd.read_csv(f)               # 读入股票数据
 data_open = df.iloc[:,1:2].values     # 取第3-10列
 data_high = df.iloc[:,2:3].values
