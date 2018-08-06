@@ -10,10 +10,19 @@ import numpy as np
 import matplotlib.pyplot as plt
 import tensorflow as tf
 
+# 输入数据，一维数组，即向量
+# Y=np.array([1.0,1.0,-1.0])
+# 随机生成向量，元素数值在-1和1之间
+# n = np.random.normal(loc=0.0, scale=1, size=(2, 3))
+# print(n)
+# 输出W
+
+level = 11
+vec_size = 6
 # 定义LSTM的超参数
 # 根据股票历史数据中的最低价、最高价、开盘价、收盘价、交易量、交易额、跌涨幅等因素，对下一日股票最高价进行预测。
 rnn_unit=15       # 隐含层数目
-input_size=3
+input_size=24
 output_size=1
 lr=0.0009         # 学习率
 
@@ -27,23 +36,134 @@ biases={
         'out':tf.Variable(tf.constant(0.1,shape=[1,]))
        }
 
-'''
-函数功能：获取获取训练数据，从原始数据中整理出训练数据
-@:param batch_size  批大小
-@:param time_step   时间步
-@:param train_begin 训练起始点
-@:param train_end   训练终止点
-
-@:return    batch_index（批索引）、train_x（训练数据feature）train_y（训练数据label）
-'''
 def create_vector():
-    d = []
-    for i in range(10):
-        W=(np.random.randn(6))
-        d.append(W)
-    list_d = d  
-    d = np.array(d)
-    return d
+	d = []
+
+	for i in range(level):
+		W=(np.random.randn(vec_size))
+		d.append(W)
+
+	list_d = d	
+	d = np.array(d)
+	# print(d.size)
+	return list_d
+
+# 导入数据
+f = open('../../data/DJIA_table.csv')
+df = pd.read_csv(f)               # 读入股票数据
+data_open = df.iloc[:,1:2].values     # 取第3-10列
+data_open = data_open[-1:-len(data_open)-1:-1]
+
+data_high = df.iloc[:,2:3].values
+data_high = data_high[-1:-len(data_high)-1:-1]
+
+data_low = df.iloc[:,3:4].values
+data_low = data_low[-1:-len(data_low)-1:-1]
+
+data_close = df.iloc[:,4:5].values
+data_close = data_close[-1:-len(data_close)-1:-1]
+
+data_vol = df.iloc[:,5:6].values
+data_vol = data_vol[-1:-len(data_vol)-1:-1]
+
+data_adjclose = df.iloc[:,6:7].values
+data_adjclose = data_adjclose[-1:-len(data_adjclose)-1:-1]
+
+max_price = max(data_open.max(),data_close.max(),data_low.max(),data_high.max())
+min_price = min(data_open.min(),data_close.min(),data_low.min(),data_high.min())
+bench = (max_price - min_price)/(level-1)
+print(bench)
+# 检测
+# print(np.append(data_open,data_close, axis=1))
+# print(type(data_close))
+
+def data_process_index():
+	# 超参的设置
+	really_dec = -0.01
+	really_inc = 0.02
+	rick_val = 1
+	real_val = 0.5
+
+	# 数据处理，看是否增长
+	data_inc = (data_close - data_open)/data_open
+	data_daily = []
+	for i in data_inc:
+	    if i > really_inc:
+	        data_daily.append(1*real_val)
+	    elif i < really_dec:
+	        data_daily.append(0*real_val)
+	    else:
+	        data_daily.append(-1*real_val)
+
+	data_daily = np.array(data_daily).reshape(1989,1)
+	# print(data_daily.shape)
+
+	# 数据处理，看是否有明显的风险
+	data_risk = (data_high - data_low)/data_low
+	# print(data_risk.shape)
+
+	# 数据处理，看是否利于投资
+	data_future = ((data_vol - data_vol.min())/(data_vol.max() - data_vol.min()))*((data_adjclose - data_adjclose.min())/(data_adjclose.max() - data_adjclose.min()))
+	# print(data_future.shape)
+
+	data = np.concatenate((data_daily,data_risk,data_future,data_daily*data_risk/data_adjclose),axis=1)
+	print(data.shape)
+
+
+def data_process_map():
+	data_open_vec = ((data_open - min_price)/bench).astype(np.int)
+	data_high_vec = ((data_high - min_price)/bench).astype(np.int)
+	data_low_vec = ((data_low - min_price)/bench).astype(np.int)
+	data_close_vec = ((data_close - min_price)/bench).astype(np.int)
+	# print(data_open_vec)
+	return data_open_vec,data_high_vec,data_low_vec,data_close_vec
+
+
+vector_map = create_vector()
+data_process_index()
+
+open_f, high_f, low_f, close_f = data_process_map()
+
+# 以折线图表示结果
+# plt.figure()
+# plt.plot(list(range(len(open_f))), open_f, color='b')
+# plt.plot(list(range(len(high_f))), high_f, color='r')
+# plt.plot(list(range(len(low_f))), low_f, color='y')
+# plt.plot(list(range(len(close_f))), close_f, color='k')
+# plt.show()
+
+open_f_map = []
+high_f_map = []
+low_f_map = []
+close_f_map = []
+
+for npa in open_f:
+	# print(npa[0])
+	open_f_map.append(vector_map[npa[0]])
+
+for npb in high_f:
+	# print(npa[0])
+	high_f_map.append(vector_map[npb[0]])
+
+for npc in low_f:
+	# print(npa[0])
+	low_f_map.append(vector_map[npc[0]])
+
+for npd in close_f:
+	# print(npa[0])
+	close_f_map.append(vector_map[npd[0]])
+
+print(len(open_f_map))
+print(len(high_f_map))
+print(len(low_f_map))
+print(len(close_f_map))
+
+data = np.concatenate((open_f_map,high_f_map,low_f_map,close_f_map,data_adjclose),axis=1)
+
+print(data.shape)
+
+print(data)
+
 
 
 def get_train_data(batch_size=60,time_step=20,train_begin=0,train_end=1800):
@@ -63,8 +183,8 @@ def get_train_data(batch_size=60,time_step=20,train_begin=0,train_end=1800):
        if i % batch_size==0:
            batch_index.append(i)
 
-       x=normalized_train_data[i:i+time_step,:3]                # x:shape 15*7
-       y=normalized_train_data[i:i+time_step,3,np.newaxis]      # y:shape 15*1
+       x=normalized_train_data[i:i+time_step,:24]                # x:shape 15*7
+       y=normalized_train_data[i:i+time_step,24,np.newaxis]      # y:shape 15*1
 
        train_x.append(x.tolist())
        train_y.append(y.tolist())
@@ -97,14 +217,14 @@ def get_test_data(time_step=20,test_begin=1400):
     test_x,test_y=[],[]
 
     for i in range(size-1):
-       x=normalized_test_data[i*time_step:(i+1)*time_step,:3]   # x shape 20*7
-       y=normalized_test_data[i*time_step:(i+1)*time_step,3]    # y shape (20,)
+       x=normalized_test_data[i*time_step:(i+1)*time_step,:24]   # x shape 20*7
+       y=normalized_test_data[i*time_step:(i+1)*time_step,24]    # y shape (20,)
        test_x.append(x.tolist())
        test_y.extend(y)
 
     # 保存得到的x和y
-    test_x.append((normalized_test_data[(i+1)*time_step:,:3]).tolist())     # 本例中 16*20*7
-    test_y.extend((normalized_test_data[(i+1)*time_step:,3]).tolist())      # 本例中 309
+    test_x.append((normalized_test_data[(i+1)*time_step:,:24]).tolist())     # 本例中 16*20*7
+    test_y.extend((normalized_test_data[(i+1)*time_step:,24]).tolist())      # 本例中 309
     return mean,std,test_x,test_y
 
 
@@ -227,8 +347,8 @@ def prediction(time_step=20):
           prob=sess.run(pred,feed_dict={X:[test_x[step]]})   # prob是长度为20的一维矩阵，也就是说，对于我们的模型，输入是15，输出是20
           predict=prob.reshape((-1))
           test_predict.extend(predict)
-        test_y=np.array(test_y)*std[3]+mean[3]
-        test_predict=np.array(test_predict)*std[3]+mean[3]
+        test_y=np.array(test_y)*std[24]+mean[24]
+        test_predict=np.array(test_predict)*std[24]+mean[24]
         acc=np.average(np.abs(test_predict-test_y[:len(test_predict)])/test_y[:len(test_predict)])  #偏差
 
         #以折线图表示结果
@@ -238,59 +358,6 @@ def prediction(time_step=20):
         plt.show()
 
 
-# ========================================主代码==================================
+train_lstm()
 
-# 导入数据
-f = open('../data/DJIA_table.csv')
-df = pd.read_csv(f)               # 读入股票数据
-data_open = df.iloc[:,1:2].values     # 取第3-10列
-data_high = df.iloc[:,2:3].values
-data_low = df.iloc[:,3:4].values
-data_close = df.iloc[:,4:5].values
-data_vol = df.iloc[:,5:6].values
-data_adjclose = df.iloc[:,6:7].values
-
-# 检测
-# print(np.append(data_open,data_close, axis=1))
-# print(type(data_close))
-
-# 超参的设置
-really_dec = -0.01
-really_inc = 0.02
-rick_val = 1
-real_val = 0.5
-
-# 数据处理，看是否增长
-data_inc = (data_close - data_open)/data_open
-data_daily = []
-for i in data_inc:
-    if i > really_inc:
-        data_daily.append(1*real_val)
-    elif i < really_dec:
-        data_daily.append(0*real_val)
-    else:
-        data_daily.append(-1*real_val)
-
-data_daily = np.array(data_daily).reshape(1989,1)
-# print(data_daily.shape)
-
-# 数据处理，看是否有明显的风险
-data_risk = (data_high - data_low)/data_low
-# print(data_risk.shape)
-
-# 数据处理，看是否利于投资
-data_future = ((data_vol - data_vol.min())/(data_vol.max() - data_vol.min()))*((data_adjclose - data_adjclose.min())/(data_adjclose.max() - data_adjclose.min()))
-# print(data_future.shape)
-
-data = np.concatenate((data_daily,data_risk,data_future,data_daily*data_risk/data_adjclose),axis=1)
-print(data.shape)
-
-# 内部调用了get_train_data函数，从data中获取了训练数据
-# 获取训练数据  batch_index:80的等差序列 train_x：[3785*15] train_y:[3785*15]  15:time_step值
-# 默认取2000~5800之间的数据作为训练数据，
-# train_lstm()
-
-# 内部调用了get_test_data函数，从data中获取了测试函数
-# 取5800往后的数据作为测试数据，一共309个数据
-# test_x 16*20（最后一个长度为9） test_y：309
-# prediction() 
+prediction()
